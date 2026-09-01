@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sword X Staff — Skill Wiki</title>
+<meta name="description" content="Every skill in Sword X Staff: all 328 skills across 26 classes, with rarity, element, effect text and range diagrams. English and German.">
+
+<link rel="stylesheet" href="style.css">
+<script>
+/* Stamp the theme before first paint so there is no flash of the wrong one. */
+(function () {
+  var t;
+  try { t = (JSON.parse(localStorage.getItem("sxs.prefs") || "{}") || {}).theme; } catch (e) {}
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.dataset.theme = t;
+})();
+</script>
+</head>
+<body>
+
+<a class="skip" href="#results">Skip to skills</a>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="./">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2.5" opacity=".35"/>
+        <path d="M12 28 L26 12 M23 12 h3 v3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M28 28 L18 16 M28 28 l-4 -1 M28 28 l1 -4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <span><b>Sword X Staff</b><i data-t="brand.sub">Skill Wiki</i></span>
+    </a>
+    <div class="controls">
+      <button type="button" class="theme" id="theme" data-t-al="theme.toggle" aria-label="Switch theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z" stroke-linejoin="round"/>
+        </svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="lang" role="group" data-t-al="lang.group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="de">DE</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <h1 data-t="page.h1">Skill Wiki</h1>
+  <p class="lede" data-t="page.lede">Every skill in the game, grouped by the class that unlocks it.</p>
+  <ol class="howto">
+    <li data-t="how.1">Pick a class on the tree</li>
+    <li data-t="how.2">Find a skill by name or filter</li>
+    <li data-t="how.3">Open it — rank and level live on the sheet</li>
+  </ol>
+
+  <section class="panel" aria-labelledby="tree-h">
+    <div class="panel-head">
+      <div>
+        <h2 id="tree-h" data-t="tree.h">Class advancement</h2>
+        <p class="hint" data-t="tree.hint">Pick a class to see its skills. Advanced classes also inherit their starting kit.</p>
+      </div>
+      <div class="tree-all" id="tree-all"></div>
+    </div>
+    <div class="tree-wrap">
+      <div class="tree-families" id="tree-families" aria-hidden="true"></div>
+      <div class="tree-caps" id="tree-caps" aria-hidden="true"></div>
+      <div class="tree" id="tree"></div>
+    </div>
+  </section>
+
+  <div class="toolbar" aria-label="Filters">
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="q" type="search" autocomplete="off" data-t-ph="filter.search" placeholder="Search name or effect…" data-t-al="filter.search" aria-label="Search name or effect">
+    </div>
+    <div class="fsets">
+      <div class="fset">
+        <span class="flabel" id="lb-kind" data-t="filter.kind">Type</span>
+        <div class="fgroup" id="f-kind" role="group" aria-labelledby="lb-kind"></div>
+      </div>
+      <div class="fset">
+        <span class="flabel" id="lb-rarity" data-t="filter.rarity">Rarity</span>
+        <div class="fgroup" id="f-rarity" role="group" aria-labelledby="lb-rarity"></div>
+      </div>
+      <div class="fset">
+        <span class="flabel" id="lb-element" data-t="filter.element">Element</span>
+        <div class="fgroup" id="f-element" role="group" aria-labelledby="lb-element"></div>
+      </div>
+    </div>
+    <div class="foot-row">
+      <p class="count" id="count" aria-live="polite"></p>
+      <button type="button" class="reset" id="reset" data-t="filter.reset" hidden>Clear filters</button>
+    </div>
+  </div>
+
+  <p class="viewing" id="viewing" aria-live="polite"></p>
+  <div id="results"></div>
+  <p class="empty" id="empty" hidden data-t="empty">No skill matches those filters.</p>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p data-t="foot.fan">Fan-made and unofficial. Not affiliated with the developers of Sword X Staff.</p>
+  </div>
+</footer>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-name" id="sheet"></div>
+</div>
+
+<script src="assets/dex/skills-data.js"></script>
+<script src="assets/dex/skill-scaling-data.js"></script>
+<script src="skill-scale.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Local notes and agent guidance — never published
+*.md
+!README.md
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+
+# Local tooling
+.claude/settings.local.json
+__pycache__/
+*.pyc
