@@ -18,6 +18,10 @@
    * The level curve is flat for percentage props, so SkillAttack
      moves with RANK and the fixed values move with LEVEL. That is
      not a quirk of this file; it is the shape of the system.
+   * groupLevel is keyed by sub-rank (Champion, Master, Saint, …).
+     The same skill level on two realms is not the same flat number
+     — Heart of Challenge at 173 is 174.7k on Champion and 329k on
+     Saint III. Percentage is rank-only and ignores the realm.
    ========================================================= */
 window.SXS_SKILL = (function () {
   const D = window.SXS_SKILL_SCALE;
@@ -92,6 +96,10 @@ window.SXS_SKILL = (function () {
   const levelCurveId = (groupId, subRank) =>
     (D.groupLevel[String(groupId || 0)] || {})[subRank] || 0;
 
+  function subOf(o) {
+    return (o && (o.subRank || o.sub)) || "Angel3";
+  }
+
   /* The one calculation. `factors` and the curve ids differ between a skill's
      active and passive halves, so both go through here. */
   function propValue(factors, rankPropId, levelCurve, propIx, rank, level) {
@@ -138,7 +146,7 @@ window.SXS_SKILL = (function () {
     if (!e) return null;
     const o = opts || {};
     const rank = clampRank(o.rank);
-    const sub = o.subRank || "Angel3";
+    const sub = subOf(o);
     const level = o.level == null ? 1 : o.level;
 
     const out = { active: [], passive: [], statuses: e.st || [], elsewhere: !!e.elsewhere };
@@ -180,7 +188,7 @@ window.SXS_SKILL = (function () {
     const which = o.passive ? "passive" : "active";
     const f = factorsOf(e, which, id);
     if (f[pix] === undefined) return null;
-    const curve = levelCurveId(which === "passive" ? e.pg : e.g, o.subRank || "Angel3");
+    const curve = levelCurveId(which === "passive" ? e.pg : e.g, subOf(o));
     const lv = clampLevel(o.level == null ? 1 : o.level, curve);
     const rp = which === "passive" ? e.pr : e.r;
     const out = [];
@@ -197,10 +205,12 @@ window.SXS_SKILL = (function () {
     const which = o.passive ? "passive" : "active";
     const f = factorsOf(e, which, id);
     if (f[pix] === undefined) return null;
-    const curve = levelCurveId(which === "passive" ? e.pg : e.g, o.subRank || "Angel3");
+    const gid = which === "passive" ? e.pg : e.g;
     const rp = which === "passive" ? e.pr : e.r;
     const rank = clampRank(o.rank);
-    const hi = maxLevel(id, o.subRank || "Angel3");
+    const sub = subOf(o);
+    const curve = levelCurveId(gid, sub);
+    const hi = maxLevel(id, sub);
     const from = Math.max(1, o.from || 1), to = Math.min(hi, o.to || hi);
     const step = Math.max(1, Math.round((to - from) / 120));
     const out = [];
@@ -248,7 +258,9 @@ window.SXS_SKILL = (function () {
     if (value === null || value === undefined) return "—";
     const kind = FORMAT[prop] || "flat";
     if (kind === "pct") {
-      return (value / 100).toLocaleString(TXT().locale, { maximumFractionDigits: 1 }) + "%";
+      /* the client prints one decimal, truncated — 4627 → 46.2%, not 46.3% */
+      const shown = Math.trunc(value / 10) / 10;
+      return shown.toLocaleString(TXT().locale, { maximumFractionDigits: 1 }) + "%";
     }
     if (kind === "int") return value.toLocaleString(TXT().locale);
     return Math.round(value).toLocaleString(TXT().locale);
@@ -261,7 +273,7 @@ window.SXS_SKILL = (function () {
      rank curve happens to be flat reports that honestly. */
   function movesWith(id, propName, opts) {
     const rs = rankSeries(id, propName, opts);
-    const hi = maxLevel(id, (opts || {}).subRank);
+    const hi = maxLevel(id, subOf(opts));
     const ls = levelSeries(id, propName, Object.assign({}, opts, { from: 1, to: hi }));
     const span = a => {
       if (!a || !a.length) return 0;

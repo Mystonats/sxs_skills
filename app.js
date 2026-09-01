@@ -28,22 +28,106 @@
   /* index.html already stamped data-theme before first paint; trust it. */
   var theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 
-  /* The rank/level the numbers are read at. Kept in the same prefs object so
-     two skills opened in a row are always compared at the same point. */
+  /* The rank, realm and level the numbers are read at. Kept in the same
+     prefs object so two skills opened in a row are always compared at the
+     same point. Realm (Champion, Master, …) picks the level curve: flat
+     damage moves with it, percentage does not. */
   var S = window.SXS_SKILL;
-  var CURVE_SUB = "Angel3";
-  var build = { rank: 34, level: 200, sub: CURVE_SUB };
+  var REALMS = [];
+  var build = { rank: 34, level: 200, sub: "Gold3" };
   if (prefs.build) {
     if (prefs.build.rank != null) build.rank = prefs.build.rank;
     if (prefs.build.level != null) build.level = prefs.build.level;
+    if (prefs.build.sub) build.sub = prefs.build.sub;
+  }
+
+  function realmName(r) {
+    var n = (S && S.data.realms || {})[r];
+    if (!n) return r;
+    return (lang === "de" && n[1]) ? n[1] : n[0];
+  }
+  function realmFamily(r) {
+    return realmName(r).replace(/\s+[IVX]+$/, "");
+  }
+
+  function maxLevelCap() {
+    if (!S) return 1;
+    var hi = 1;
+    D.skills.forEach(function (sk) { hi = Math.max(hi, S.maxLevel(sk.id, build.sub)); });
+    return hi;
+  }
+
+  function clampBuild() {
+    if (!S) return;
+    build.rank = S.clampRank(build.rank);
+    if (REALMS.length && REALMS.indexOf(build.sub) < 0) {
+      build.sub = REALMS[REALMS.length - 1];
+    }
+    var hi = maxLevelCap();
+    var n = Number(build.level);
+    build.level = Math.max(1, Math.min(hi, isFinite(n) ? n : 1));
+  }
+
+  if (S) {
+    REALMS = S.subRanks.filter(function (r) {
+      return !/^(Norank|Blackiron|Bronze)/.test(r) && realmName(r) !== r;
+    });
+    clampBuild();
   }
 
   function savePrefs() {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        lang: lang, theme: theme, build: { rank: build.rank, level: build.level }
+        lang: lang, theme: theme,
+        build: { rank: build.rank, level: build.level, sub: build.sub }
       }));
     } catch (e) { /* private mode — the session still works, it just won't stick */ }
+  }
+
+  /* One chip per distinct level curve, labelled with the realm family
+     (Champion, not Champion I/II/III — those three share a curve). */
+  function realmChips() {
+    var map = (S && S.data.groupLevel && S.data.groupLevel["1"]) || {};
+    var seen = {}, out = [];
+    REALMS.forEach(function (r) {
+      var cid = map[r];
+      if (cid == null || seen[cid]) return;
+      seen[cid] = true;
+      out.push({ id: r, label: realmFamily(r) });
+    });
+    return out;
+  }
+
+  function realmChipActive() {
+    var map = (S && S.data.groupLevel && S.data.groupLevel["1"]) || {};
+    var want = map[build.sub];
+    var chips = realmChips();
+    for (var i = 0; i < chips.length; i++) {
+      if (map[chips[i].id] === want) return chips[i].id;
+    }
+    return build.sub;
+  }
+
+  function setRealm(id) {
+    build.sub = id;
+    clampBuild();
+    savePrefs();
+    renderRealmChips();
+    reopen();
+  }
+
+  function renderRealmChips() {
+    var host = document.getElementById("f-realm");
+    if (!host) return;
+    host.innerHTML = "";
+    var active = realmChipActive();
+    realmChips().forEach(function (it) {
+      var b = el("button", null, it.label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", it.id === active ? "true" : "false");
+      b.onclick = function () { setRealm(it.id); };
+      host.appendChild(b);
+    });
   }
 
   /* Skill text is bilingual in the data: pick a suffix, don't load a bundle. */
@@ -59,11 +143,12 @@
       "page.lede": "Every skill in the game, grouped by the class that unlocks it.",
       "how.1": "Pick a class on the tree",
       "how.2": "Find a skill by name or filter",
-      "how.3": "Open it — rank and level live on the sheet",
+      "how.3": "Open it — rank, realm and level live on the sheet",
       "tree.h": "Class advancement",
       "tree.hint": "Pick a class to see its skills. Advanced classes also inherit their starting kit.",
       "filter.search": "Search name or effect…",
       "filter.kind": "Type", "filter.rarity": "Rarity", "filter.element": "Element",
+      "filter.realm": "Realm",
       "filter.reset": "Clear filters",
       "theme.toggle": "Switch between light and dark",
       "lang.group": "Language",
@@ -96,11 +181,12 @@
       "page.lede": "Alle Fähigkeiten des Spiels, nach der freischaltenden Klasse gruppiert.",
       "how.1": "Wähle eine Klasse im Baum",
       "how.2": "Finde eine Fähigkeit per Name oder Filter",
-      "how.3": "Öffne sie — Stufe und Level stehen auf dem Blatt",
+      "how.3": "Öffne sie — Stufe, Reich und Level stehen auf dem Blatt",
       "tree.h": "Klassenaufstieg",
       "tree.hint": "Wähle eine Klasse, um ihre Fähigkeiten zu sehen. Fortgeschrittene Klassen erben zusätzlich ihre Grundausrüstung.",
       "filter.search": "Name oder Wirkung suchen…",
       "filter.kind": "Art", "filter.rarity": "Seltenheit", "filter.element": "Element",
+      "filter.realm": "Reich",
       "filter.reset": "Filter zurücksetzen",
       "theme.toggle": "Zwischen hell und dunkel wechseln",
       "lang.group": "Sprache",
@@ -455,6 +541,7 @@
     chips("f-kind", [{ id: "active", label: t("active") }, { id: "passive", label: t("passive") }], "kind");
     chips("f-rarity", RARITIES.map(function (r) { return { id: r, label: r }; }), "rarity");
     chips("f-element", ELEMENTS.map(function (e) { return { id: e, label: t("el" + e) }; }), "element");
+    renderRealmChips();
 
     var rows = D.skills.filter(matches);
     countEl.textContent = UI[lang].count(rows.length);
@@ -580,12 +667,6 @@
     setRankQualityAdd(next, (S.ranks[S.clampRank(build.rank)] || {}).add || 0);
   }
 
-  function maxLevelCap() {
-    var hi = 1;
-    D.skills.forEach(function (sk) { hi = Math.max(hi, S.maxLevel(sk.id, CURVE_SUB)); });
-    return hi;
-  }
-
   var STAR = "M12 2.2l2.6 6.4 6.9.6-5.2 4.5 1.6 6.7L12 16.8 6.1 20.4l1.6-6.7L2.5 9.2l6.9-.6z";
 
   function starRow() {
@@ -632,7 +713,7 @@
   }
 
   function tuneBar(sk) {
-    var hi = S.maxLevel(sk.id, CURVE_SUB) || maxLevelCap();
+    var hi = S.maxLevel(sk.id, build.sub) || maxLevelCap();
     var box = el("div", "sk-tune");
 
     var lv = el("label", "sk-tune-level");
@@ -649,6 +730,20 @@
     };
     lv.appendChild(input);
     box.appendChild(lv);
+
+    var realmRow = el("div", "sk-realms");
+    realmRow.setAttribute("role", "group");
+    realmRow.setAttribute("aria-label", t("filter.realm"));
+    var active = realmChipActive();
+    realmChips().forEach(function (it) {
+      var b = el("button", "sk-realm" + (it.id === active ? " is-on" : ""), it.label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", it.id === active ? "true" : "false");
+      b.dataset.fk = "realm" + it.id;
+      b.onclick = function () { setRealm(it.id); };
+      realmRow.appendChild(b);
+    });
+    box.appendChild(realmRow);
 
     var rank = el("div", "sk-tune-rank");
     rank.appendChild(qualityNav());

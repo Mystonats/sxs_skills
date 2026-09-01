@@ -270,6 +270,7 @@ h2 { font-size: 15px; margin: 0 0 4px; letter-spacing: .01em; }
 
 .fsets { display: flex; flex-wrap: wrap; gap: 10px 16px; flex: 2 1 380px; }
 .fset { display: flex; flex-direction: column; gap: 6px; }
+.fset-realm { flex: 1 0 100%; }
 .flabel {
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
   text-transform: uppercase; color: var(--ink-faint);
@@ -487,6 +488,16 @@ h2 { font-size: 15px; margin: 0 0 4px; letter-spacing: .01em; }
   display: flex; flex-direction: column; align-items: flex-start;
   gap: 3px; padding: 4px 6px 6px; background: #d6d6d2;
 }
+.sk-realms {
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: #d6d6d2;
+}
+.sk-realm {
+  border: 0; background: #c8c8c4; color: #3a3a3a; cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px;
+}
+.sk-realm.is-on { background: #1e1e1e; color: #ecece8; }
+.sk-realm:hover:not(.is-on) { background: #b8b8b4; }
 .sk-tier { display: flex; align-items: center; gap: 4px; }
 .sk-tier-name { font-size: 15px; font-weight: 800; color: #1e1e1e; }
 .sk-tier-btn {
