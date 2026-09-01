@@ -22,6 +22,9 @@
      The same skill level on two realms is not the same flat number
      — Heart of Challenge at 173 is 174.7k on Champion and 329k on
      Saint III. Percentage is rank-only and ignores the realm.
+   * Charm damage often lives on ViewPropEntities, not the skill
+     itself. Those factors ride the child's RankPropId / GroupLevel
+     (baked as f/r/g, or as vf/vr/vg when the parent already has CD).
    ========================================================= */
 window.SXS_SKILL = (function () {
   const D = window.SXS_SKILL_SCALE;
@@ -114,30 +117,38 @@ window.SXS_SKILL = (function () {
     return Math.trunc(v * f / 10000);
   }
 
-  let VIEW_F = null;
-  function extraFactors(id) {
-    if (!VIEW_F) {
-      VIEW_F = {};
-      const list = (window.DEX_SKILLS && window.DEX_SKILLS.skills) || [];
-      list.forEach(s => { if (s.viewF) VIEW_F[String(s.id)] = s.viewF; });
-    }
-    return VIEW_F[String(id)] || null;
+  function asFactors(obj) {
+    const out = {};
+    if (!obj) return out;
+    for (const k in obj) out[Number(k)] = obj[k];
+    return out;
   }
 
-  function factorsOf(entry, which, id) {
-    const src = which === "passive" ? (entry.pf || {}) : (entry.f || {});
-    const out = {};
-    for (const k in src) out[Number(k)] = src[k];
-    if (which !== "passive" && id) {
-      const extra = extraFactors(id);
-      if (extra) {
-        for (const name in extra) {
-          const pix = PROP_IX[name];
-          if (pix !== undefined && out[pix] === undefined) out[pix] = extra[name];
-        }
-      }
+  function hasPix(obj, pix) {
+    return !!(obj && (obj[pix] !== undefined || obj[String(pix)] !== undefined));
+  }
+
+  function factorsOf(entry, which) {
+    return asFactors(which === "passive" ? entry.pf : entry.f);
+  }
+
+  /* ViewPropEntities carry their own RankPropId / GroupLevelPropId. Charms
+     that trigger a strike have those baked into f/r/g. Skills like Blast
+     Spirit keep CD on the parent and the explosion on vf/vr/vg. */
+  function activeSource(entry, pix) {
+    if (hasPix(entry.vf, pix))
+      return { f: asFactors(entry.vf), r: entry.vr, g: entry.vg };
+    return { f: factorsOf(entry, "active"), r: entry.r, g: entry.g };
+  }
+
+  function pushScaled(into, factors, rankId, groupId, rank, level, sub) {
+    const curve = levelCurveId(groupId, sub);
+    const lv = clampLevel(level, curve);
+    for (const pix in factors) {
+      const n = Number(pix);
+      const v = propValue(factors, rankId, curve, n, rank, lv);
+      if (v !== null) into.push({ prop: D.props[n], ix: n, value: v });
     }
-    return out;
   }
 
   /* Everything a skill is worth at one point in the space. */
@@ -151,19 +162,17 @@ window.SXS_SKILL = (function () {
 
     const out = { active: [], passive: [], statuses: e.st || [], elsewhere: !!e.elsewhere };
 
-    const aF = factorsOf(e, "active", id);
-    const aLevel = levelCurveId(e.g, sub);
-    for (const pix in aF) {
-      const v = propValue(aF, e.r, aLevel, Number(pix), rank, clampLevel(level, aLevel));
-      if (v !== null) out.active.push({ prop: D.props[pix], ix: Number(pix), value: v });
+    pushScaled(out.active, factorsOf(e, "active"), e.r, e.g, rank, level, sub);
+    if (e.vf) {
+      const vf = asFactors(e.vf);
+      const overlay = {};
+      for (const pix in vf) overlay[pix] = true;
+      out.active = out.active.filter(x => !overlay[x.ix]);
+      pushScaled(out.active, vf, e.vr, e.vg, rank, level, sub);
     }
 
     const pF = factorsOf(e, "passive");
-    const pLevel = levelCurveId(e.pg, sub);
-    for (const pix in pF) {
-      const v = propValue(pF, e.pr, pLevel, Number(pix), rank, clampLevel(level, pLevel));
-      if (v !== null) out.passive.push({ prop: D.props[pix], ix: Number(pix), value: v });
-    }
+    pushScaled(out.passive, pF, e.pr, e.pg, rank, level, sub);
     /* passive factors naming a prop outside the 16 the curves carry: the
        factor is the whole story there, since no curve scales it */
     for (const name in (e.pfx || {})) {
@@ -186,11 +195,16 @@ window.SXS_SKILL = (function () {
     const pix = PROP_IX[propName];
     const o = opts || {};
     const which = o.passive ? "passive" : "active";
-    const f = factorsOf(e, which, id);
+    let f, rp, gid;
+    if (which === "active") {
+      const src = activeSource(e, pix);
+      f = src.f; rp = src.r; gid = src.g;
+    } else {
+      f = factorsOf(e, "passive"); rp = e.pr; gid = e.pg;
+    }
     if (f[pix] === undefined) return null;
-    const curve = levelCurveId(which === "passive" ? e.pg : e.g, subOf(o));
+    const curve = levelCurveId(gid, subOf(o));
     const lv = clampLevel(o.level == null ? 1 : o.level, curve);
-    const rp = which === "passive" ? e.pr : e.r;
     const out = [];
     for (let r = 0; r < D.ranks.length; r++) out.push(propValue(f, rp, curve, pix, r, lv));
     return out;
@@ -203,10 +217,14 @@ window.SXS_SKILL = (function () {
     const pix = PROP_IX[propName];
     const o = opts || {};
     const which = o.passive ? "passive" : "active";
-    const f = factorsOf(e, which, id);
+    let f, rp, gid;
+    if (which === "active") {
+      const src = activeSource(e, pix);
+      f = src.f; rp = src.r; gid = src.g;
+    } else {
+      f = factorsOf(e, "passive"); rp = e.pr; gid = e.pg;
+    }
     if (f[pix] === undefined) return null;
-    const gid = which === "passive" ? e.pg : e.g;
-    const rp = which === "passive" ? e.pr : e.r;
     const rank = clampRank(o.rank);
     const sub = subOf(o);
     const curve = levelCurveId(gid, sub);
@@ -226,7 +244,8 @@ window.SXS_SKILL = (function () {
   function maxLevel(id, subRank) {
     const e = skill(id);
     if (!e) return 1;
-    const c = levelCurveId(e.g, subRank || "Angel3") || levelCurveId(e.pg, subRank || "Angel3");
+    const sub = subRank || "Angel3";
+    const c = levelCurveId(e.g, sub) || levelCurveId(e.vg, sub) || levelCurveId(e.pg, sub);
     return c ? (D.levelMax[String(c)] || 1) : 1;
   }
 
