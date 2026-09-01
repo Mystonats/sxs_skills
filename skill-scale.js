@@ -25,6 +25,8 @@
    * Charm damage often lives on ViewPropEntities, not the skill
      itself. Those factors ride the child's RankPropId / GroupLevel
      (baked as f/r/g, or as vf/vr/vg when the parent already has CD).
+   * Status charms (Iron Will, Soul Protection, …) do the same from
+     entity_prop_status. Labels come from PropType.* / "{id}.{prop}".
    ========================================================= */
 window.SXS_SKILL = (function () {
   const D = window.SXS_SKILL_SCALE;
@@ -51,12 +53,29 @@ window.SXS_SKILL = (function () {
     SkillTargetReduceHpPer: "pct", SkillDmgUnitAddPer: "pct", SkillDmgMaxAddPer: "pct",
     SkillDmgAddPerByTargetHp: "pct", SkillDmgAddPerByLargeTarget: "pct",
     OnceHitHemophagiaPer: "pct",
+    StatusDmgReducePer: "pct", StatusDmgAddPer: "pct", StatusShieldAddPercent: "pct",
+    StatusDmgVulnerablePer: "pct", StatusTypeDmgAddPer: "pct",
+    AttackScale: "pct", DefenceScale: "pct", MaxHpScale: "pct", SpeedScale: "pct",
+    ShieldByTargetHp: "pct", ShieldByDefence: "pct", ShieldByConvertedCurHp: "pct",
+    FinalDamageReducePercent: "pct", FinalCureScale: "pct",
+    DamageByDamage: "pct", SuckHpByDamage: "pct", StatusIgnoreDefence: "pct",
+    BeCureAddPercent: "pct", CureAddPercent: "pct",
+    BlockAvoidPercent: "pct", BlockPercent: "pct", CritRatePercent: "pct",
+    CritPowerPercent: "pct",
     CD: "int", BreakResilience: "int",
   };
 
   /* Which props lead a card. Percentage damage first because that is the
-     number people compare skills on; flat damage second. */
-  const HEADLINE = ["SkillAttack1", "SkillFixedAttack1", "SkillCureByHp", "SkillFixedCure"];
+     number people compare skills on; flat damage second. Status sheets
+     (Iron Will, Soul Protection) lead with their DR / shield pair. */
+  const HEADLINE = [
+    "SkillAttack1", "SkillFixedAttack1", "SkillCureByHp", "SkillFixedCure",
+    "StatusDmgReducePer", "FixedStatusDmgReduce",
+    "StatusDmgAddPer", "FixedStatusDmgAdd",
+    "SkillFixedShield", "StatusShieldAddPercent", "StatusFixedShieldAdd",
+    "ShieldByTargetHp", "ShieldByDefence", "ShieldByConvertedCurHp",
+    "StatusAdd1", "StatusAdd2", "StatusAdd3", "StatusAdd4",
+  ];
 
   /* decoded curve columns, built on demand — the level tables run to 500
      entries and most sessions touch a handful of skills */
@@ -273,9 +292,15 @@ window.SXS_SKILL = (function () {
   const rankQuality = rank => (D.ranks[clampRank(rank)] || {}).q || "None";
 
   /* the number as the game would print it */
+  function kindOf(prop) {
+    if (FORMAT[prop]) return FORMAT[prop];
+    if (/Percent(?:Value)?$|Per$|Scale$|^ShieldBy|^StatusAdd\d/.test(prop)) return "pct";
+    return "flat";
+  }
+
   function format(prop, value) {
     if (value === null || value === undefined) return "—";
-    const kind = FORMAT[prop] || "flat";
+    const kind = kindOf(prop);
     if (kind === "pct") {
       /* the client prints one decimal, truncated — 4627 → 46.2%, not 46.3% */
       const shown = Math.trunc(value / 10) / 10;
@@ -285,7 +310,27 @@ window.SXS_SKILL = (function () {
     return Math.round(value).toLocaleString(TXT().locale);
   }
 
-  const isPct = prop => (FORMAT[prop] || "flat") === "pct";
+  const isPct = prop => kindOf(prop) === "pct";
+
+  function locPair(pair) {
+    if (!pair) return null;
+    if (typeof pair === "string") return pair.trim();
+    const de = String(TXT().locale || "").indexOf("de") === 0;
+    const s = de && pair[1] ? pair[1] : pair[0];
+    return s ? String(s).trim() : s;
+  }
+
+  /* PropType.* from the client, plus per-entity overrides like
+     24489.SkillFixedShield → "Extra Shield Strength". */
+  function propLabel(prop, id) {
+    const e = id != null ? skill(id) : null;
+    const vl = e && e.vl && e.vl[prop];
+    if (vl) return locPair(vl);
+    const n = D.propNames && D.propNames[prop];
+    if (n) return locPair(n);
+    const t = TXT().prop && TXT().prop(prop);
+    return t || prop;
+  }
 
   /* Which axis actually moves a prop for this skill — the answer to "should I
      rank this up or level it?". Measured rather than assumed, so a skill whose
@@ -321,7 +366,7 @@ window.SXS_SKILL = (function () {
   return {
     data: D, props: D.props, ranks: D.ranks, PROP_IX, HEADLINE,
     skill, resolve, rankSeries, levelSeries, maxLevel,
-    rankLabel, rankQuality, clampRank, format, isPct, movesWith, plateau,
+    rankLabel, rankQuality, clampRank, format, isPct, propLabel, movesWith, plateau,
     subRanks: Object.keys(D.groupLevel["1"] || {}),
   };
 })();

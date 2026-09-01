@@ -272,14 +272,18 @@
           ElementMaster: "Elementar-Meisterschaft", KongFuMaster: "Physische Meisterschaft",
           EffectRate: "Effekt-Treffer", EffectDodge: "Effekt-WDST" }
   };
-  function propName(p) { return (PROPS[lang] && PROPS[lang][p]) || PROPS.en[p] || p; }
+  function propName(p, sid) {
+    if (S && S.propLabel) return S.propLabel(p, sid);
+    return (PROPS[lang] && PROPS[lang][p]) || PROPS.en[p] || p;
+  }
 
   /* skill-scale.js reads its three strings from here. */
   function syncScaleText() {
     window.SXS_SKILL_TEXT = {
       rankNone: t("rankNone"),
       quality: qualityName,
-      locale: lang === "de" ? "de-DE" : "en-GB"
+      locale: lang === "de" ? "de-DE" : "en-GB",
+      prop: function (p) { return (PROPS[lang] && PROPS[lang][p]) || PROPS.en[p] || null; }
     };
   }
   syncScaleText();
@@ -755,7 +759,7 @@
 
   function combo(res, pctProp, flatProp) {
     var pct = null, flat = null;
-    res.active.forEach(function (e) {
+    res.active.concat(res.passive).forEach(function (e) {
       if (e.prop === pctProp) pct = e;
       if (e.prop === flatProp) flat = e;
     });
@@ -781,19 +785,72 @@
     }
 
     if (res) {
+      var shown = {};
+      function labelOf(p) { return propName(p, sk.id); }
+      function mark() {
+        for (var i = 0; i < arguments.length; i++) {
+          if (arguments[i]) shown[arguments[i]] = true;
+        }
+      }
+      function addCombo(pct, flat, label) {
+        var pool = res.active.concat(res.passive);
+        var hasPct = false, hasFlat = false;
+        pool.forEach(function (e) {
+          if (e.prop === pct) hasPct = true;
+          if (e.prop === flat) hasFlat = true;
+        });
+        if (!hasPct && !hasFlat) return false;
+        /* A lone flat must not steal the percent's name — Soul Protection
+           is SkillFixedShield only, labelled Extra Shield Strength, not
+           whatever ShieldBy* pair is tried first. Damage/heal pass an
+           explicit label so a one-sided hit still reads as Damage. */
+        if ((!hasPct || !hasFlat) && !label) return false;
+        var v = combo(res, pct, flat);
+        if (!v) return false;
+        add(label || labelOf(pct), v);
+        mark(pct, flat);
+        return true;
+      }
       var cd = null;
       res.active.forEach(function (e) { if (e.prop === "CD") cd = e; });
-      if (cd) add(propName("CD"), S.format(cd.prop, cd.value));
-      var dmg = combo(res, "SkillAttack1", "SkillFixedAttack1");
-      if (dmg) add(t("damage"), dmg);
-      var heal = combo(res, "SkillCureByHp", "SkillFixedCure") ||
-                 combo(res, "SkillCureByAttack", "SkillFixedCure");
-      if (heal) add(t("healing"), heal);
-      if (!cd && !dmg && !heal) {
-        (res.active.length ? res.active : res.passive).slice(0, 4).forEach(function (e) {
-          add(propName(e.prop), S.format(e.prop, e.value));
-        });
+      if (cd) {
+        add(labelOf("CD"), S.format(cd.prop, cd.value));
+        mark("CD");
       }
+      addCombo("SkillAttack1", "SkillFixedAttack1", t("damage"));
+      if (!shown.SkillCureByHp && !shown.SkillCureByAttack) {
+        addCombo("SkillCureByHp", "SkillFixedCure", t("healing")) ||
+          addCombo("SkillCureByAttack", "SkillFixedCure", t("healing"));
+      }
+      [
+        ["StatusDmgReducePer", "FixedStatusDmgReduce"],
+        ["StatusDmgAddPer", "FixedStatusDmgAdd"],
+        ["StatusShieldAddPercent", "StatusFixedShieldAdd"],
+        ["StatusDmgVulnerablePer", "FixedstatusDmgVulnerable"],
+        ["AttackScale", "FixedAttack"],
+        ["DefenceScale", "FixedDefence"],
+        ["MaxHpScale", "FixedMaxHp"],
+        ["SpeedScale", "FixedSpeed"],
+        ["BeCureAddPercent", "BeCureAdd"],
+        ["CureAddPercent", "CureAdd"],
+        ["DamageByDamage", "FixedDamageByDamage"],
+        ["SuckHpByDamage", "FixedSuckHp"],
+        ["StatusIgnoreDefence", "FixedStatusIgnoreDefence"],
+        ["ShieldByTargetHp", "SkillFixedShield"],
+        ["ShieldByDefence", "SkillFixedShield"],
+        ["ShieldByAttack", "SkillFixedShield"],
+        ["ShieldByConvertedCurHp", "SkillFixedShield"],
+        ["StatusAdd1", "StatusFixedAdd1"],
+        ["StatusAdd2", "StatusFixedAdd2"],
+        ["StatusAdd3", "StatusFixedAdd3"],
+        ["StatusAdd4", "StatusFixedAdd4"],
+        ["StatusAdd1", "StatusFixedAdd2"]
+      ].forEach(function (pair) { addCombo(pair[0], pair[1]); });
+      res.active.concat(res.passive).forEach(function (e) {
+        if (shown[e.prop]) return;
+        add(labelOf(e.prop), S.format(e.prop, e.value));
+        mark(e.prop);
+      });
     }
 
     if (!box.querySelector(".sk-stat") && !box.querySelector(".sk-nonum")) {
