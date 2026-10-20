@@ -141,6 +141,8 @@
       "brand.sub": "Skill Wiki",
       "page.h1": "Skill Wiki",
       "page.lede": "Every skill in the game, grouped by the class that unlocks it.",
+      "patch.note": "October 20 patch (version 130) · Updated skill values; rank-8 classes have no Global date yet.",
+      "skill.pending": "Effect text is not localized yet.",
       "how.1": "Pick a class on the tree",
       "how.2": "Find a skill by name or filter",
       "how.3": "Open it — rank, realm and level live on the sheet",
@@ -179,6 +181,8 @@
       "brand.sub": "Fähigkeiten-Wiki",
       "page.h1": "Fähigkeiten-Wiki",
       "page.lede": "Alle Fähigkeiten des Spiels, nach der freischaltenden Klasse gruppiert.",
+      "patch.note": "Patch vom 20. Oktober (Version 130) · Aktualisierte Skillwerte; Rang-8-Klassen haben noch keinen Global-Termin.",
+      "skill.pending": "Der Effekttext ist noch nicht übersetzt.",
       "how.1": "Wähle eine Klasse im Baum",
       "how.2": "Finde eine Fähigkeit per Name oder Filter",
       "how.3": "Öffne sie — Stufe, Reich und Level stehen auf dem Blatt",
@@ -922,7 +926,7 @@
 
     /* desc_html is pre-escaped by the generator; only .sk-c spans are markup */
     var d = el("p", "sk-desc");
-    d.innerHTML = pick(s, "desc_html") || escapeText(pick(s, "desc"));
+    d.innerHTML = pick(s, "desc_html") || escapeText(pick(s, "desc") || t("skill.pending"));
     info.appendChild(d);
 
     var kv = el("dl", "sk-kv");
